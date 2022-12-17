@@ -1,75 +1,69 @@
 import os
 import random
-import sys
-
 import pygame
 
+size = width, height = 500, 500
+screen = pygame.display.set_mode(size)
 
-def load_image(name, colorkey=None):
+clock = pygame.time.Clock()
+
+
+def load_image(name, color_key=None):
     fullname = os.path.join('data', name)
-    # если файл не существует, то выходим
-    if not os.path.isfile(fullname):
-        print(f"Файл с изображением '{fullname}' не найден")
-        sys.exit()
-    image = pygame.image.load(fullname)
-    if colorkey is not None:
-        image = image.convert()
-        if colorkey == -1:
-            colorkey = image.get_at((0, 0))
-        image.set_colorkey(colorkey)
+    try:
+        image = pygame.image.load(fullname).convert()
+    except pygame.error as message:
+        print('Cannot load image:', name)
+        raise SystemExit(message)
+
+    if color_key is not None:
+        if color_key == -1:
+            color_key = image.get_at((0, 0))
+        image.set_colorkey(color_key)
     else:
         image = image.convert_alpha()
     return image
 
 
 class Bomb(pygame.sprite.Sprite):
-    image = None
-    image_boom = None
+    image = load_image("bomb2.png")
+    image_boom = load_image("boom.png")
 
-    def __init__(self, *group, size=(500, 500)):
-        # НЕОБХОДИМО вызвать конструктор родительского класса Sprite. Это очень важно !!!
-        super().__init__(*group)
-        if Bomb.image is None:
-            Bomb.image = load_image("bomb2.png")
-            Bomb.image_boom = load_image("boom.png")
+    def __init__(self, group):
+        # НЕОБХОДИМО вызвать конструктор родительского класса Sprite
+        super().__init__(group)
         self.image = Bomb.image
-        width, height = size
         self.rect = self.image.get_rect()
-        self.rect.x = random.randrange(width - self.image.get_rect().width)
-        self.rect.y = random.randrange(height - self.image.get_rect().height)
+        # ищем свободное место до тех пор, пока не найдем
+        while True:
+            self.rect.topleft = (
+                (random.randint(0, width - self.rect.width), random.randint(0, height - self.rect.height)))
+            if len(pygame.sprite.spritecollide(self, all_sprites, False)) == 1:
+                break
 
-    def update(self, *args):
-        if args and args[0].type == pygame.MOUSEBUTTONDOWN and self.rect.collidepoint(args[0].pos):
+    # Поручим бомбочке получать событие и взрываться самой
+    def get_event(self, event):
+        if self.rect.collidepoint(event.pos):
             self.image = self.image_boom
 
 
-def main():
-    size = 500, 500
-    screen = pygame.display.set_mode(size)
-    pygame.display.set_caption('Boom them all')
+# группа, содержащая все спрайты
+all_sprites = pygame.sprite.Group()
 
-    # группа, содержащая все спрайты
-    all_sprites = pygame.sprite.Group()
+for i in range(10):
+    # нам уже не нужно даже имя объекта!
+    Bomb(all_sprites)
 
-    for i in range(20):
-        # нам уже не нужно даже имя объекта!
-        Bomb(all_sprites, size=size)
+running = True
+while running:
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            for bomb in all_sprites:
+                bomb.get_event(event)
+    screen.fill(pygame.Color("black"))
+    all_sprites.draw(screen)
+    pygame.display.flip()
 
-    running = True
-    while running:
-        all_sprites.update()
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                all_sprites.update(event)
-
-        screen.fill(pygame.Color("black"))
-        all_sprites.draw(screen)
-        pygame.display.flip()
-
-    pygame.quit()
-
-
-if __name__ == '__main__':
-    main()
+pygame.quit()
